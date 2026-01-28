@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tempo de Resposta - Óticas Diniz</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&display=swap');
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: #C8102E;
+            font-family: 'Montserrat', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        /* TELA DE LOGIN */
+        #login-screen {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .logo-header { width: 220px; margin-bottom: 25px; }
+
+        h2 { font-size: 1.1rem; margin-bottom: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+
+        .input-group { width: 100%; margin-bottom: 12px; }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            outline: none;
+            font-family: 'Montserrat', sans-serif;
+            text-align: center;
+        }
+
+        button.btn-entrar {
+            width: 100%;
+            padding: 16px;
+            background-color: #FFD700;
+            color: black;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 10px;
+            text-transform: uppercase;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+
+        button.btn-entrar:active { transform: scale(0.96); }
+
+        .error-msg {
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: bold;
+            margin-top: 15px;
+            background-color: rgba(0,0,0,0.4);
+            padding: 8px 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .error-msg.visible { display: block; }
+
+        /* JOGO */
+        #game-container {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #C8102E;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .countdown-text { font-size: 6rem; font-weight: 800; text-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+
+        .game-area {
+            width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; -webkit-tap-highlight-color: transparent;
+        }
+
+        #target-logo {
+            width: 280px; display: none;
+            filter: drop-shadow(0 0 25px rgba(255,255,255,0.6));
+        }
+
+        /* RESULTADO */
+        #result-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            width: 90%;
+            max-width: 450px;
+            background: white;
+            color: #C8102E;
+            border-radius: 25px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            z-index: 20;
+        }
+
+        #result-screen h1 { font-size: 2.2rem; font-weight: 900; margin-bottom: 5px; }
+
+        #prize-display {
+            font-size: 1.3rem;
+            font-weight: 800;
+            padding: 25px;
+            border-radius: 15px;
+            margin: 20px 0;
+            width: 100%;
+            border: 2px solid #ddd;
+            line-height: 1.4;
+        }
+
+        .btn-restart {
+            padding: 15px 40px;
+            background-color: #C8102E;
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-weight: 800;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <audio id="countdown-sound" preload="auto">
+        <source src="sound.mp3" type="audio/mpeg">
+    </audio>
+
+    <div id="login-screen">
+        <img src="login.png" class="logo-header">
+        <h2>🕛 Tempo de Resposta Diniz</h2>
+        <div class="input-group"><input type="text" id="nome" placeholder="Nome completo"></div>
+        <div class="input-group"><input type="number" id="cpf" placeholder="CPF (somente números)"></div>
+        <div class="input-group"><input type="password" id="senha-gerencia" placeholder="Acesso gerência"></div>
+        <button class="btn-entrar" onclick="tentarLogin()">Iniciar Desafio</button>
+        <div class="error-msg" id="error-msg"></div>
+    </div>
+
+    <div id="game-container">
+        <div id="countdown" class="countdown-text"></div>
+        <div id="game-area" class="game-area hidden" onmousedown="registrarClique(event)" ontouchstart="registrarClique(event)">
+            <img src="login.png" id="target-logo">
+        </div>
+    </div>
+
+    <div id="result-screen">
+        <h1>PARABÉNS!</h1>
+        <p id="time-display" style="color: #666; font-weight: bold;">Seu tempo: --</p>
+        <div id="prize-display"></div>
+        <button class="btn-restart" onclick="location.reload()">Jogar Novamente</button>
+    </div>
+
+    <script>
+        // CONFIGURAÇÃO DO DISCORD
+        const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1466155272006271139/0HNkgPJZC55AleO6hiR_soYz6mNzQrr_8vP--ATI78l1Bz9vurJ529Wg15Z8rRYbzJm8';
+
+        let tempoInicial, tempoFinal, userNome, userCPF;
+        let podeClicar = false;
+        const soundEffect = document.getElementById('countdown-sound');
+
+        function validarCPF(cpf) {
+            cpf = cpf.replace(/[^\d]+/g,'');
+            if(cpf.length != 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+            let add = 0;
+            for (let i=0; i < 9; i ++) add += parseInt(cpf.charAt(i)) * (10 - i);
+            let rev = 11 - (add % 11);
+            if (rev == 10 || rev == 11) rev = 0;
+            if (rev != parseInt(cpf.charAt(9))) return false;
+            add = 0;
+            for (let i = 0; i < 10; i ++) add += parseInt(cpf.charAt(i)) * (11 - i);
+            rev = 11 - (add % 11);
+            if (rev == 10 || rev == 11) rev = 0;
+            return rev == parseInt(cpf.charAt(10));
+        }
+
+        function enviarParaDiscord(nome, cpf, tempo, premio) {
+            const payload = {
+                content: "🚀 **NOVO RESULTADO TEMPO DE RESPOSTA DINIZ**",
+                embeds: [{
+                    title: "Prêmio Conquistado!",
+                    color: 13111342,
+                    fields: [
+                        { name: "👤 Nome", value: nome, inline: true },
+                        { name: "🆔 CPF", value: cpf, inline: true },
+                        { name: "⏱️ Reação", value: tempo.toFixed(3) + "s", inline: true },
+                        { name: "🎁 Benefício", value: premio }
+                    ],
+                    timestamp: new Date().toISOString()
+                }]
+            };
+
+            fetch(DISCORD_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).catch(err => console.error("Erro Discord:", err));
+        }
+
+        function tentarLogin() {
+            userNome = document.getElementById('nome').value;
+            userCPF = document.getElementById('cpf').value;
+            const senha = document.getElementById('senha-gerencia').value;
+            const msgErro = document.getElementById('error-msg');
+
+            msgErro.classList.remove('visible');
+            
+            if (!userNome || !userCPF) { msgErro.textContent = "Por favor, preencha Nome e CPF."; msgErro.classList.add('visible'); return; }
+            if (!validarCPF(userCPF)) { msgErro.textContent = "CPF inválido!"; msgErro.classList.add('visible'); return; }
+            
+            // Validação de Senha Gerência
+            if (senha !== "" && senha !== "Diniz") { 
+                msgErro.textContent = "Senha de gerência incorreta!"; 
+                msgErro.classList.add('visible'); 
+                return; 
+            }
+
+            // Se não for gerente, checa se já jogou
+            if (senha !== "Diniz") {
+                if (localStorage.getItem('diniz_user_' + userCPF)) {
+                    msgErro.textContent = "Este CPF já participou da promoção!"; 
+                    msgErro.classList.add('visible'); 
+                    return;
+                }
+                localStorage.setItem('diniz_user_' + userCPF, 'true');
+            }
+            
+            iniciarJogo();
+        }
+
+        function iniciarJogo() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('game-container').style.display = 'flex';
+            
+            let count = 5;
+            document.getElementById('countdown').textContent = count;
+            
+            // Inicia áudio
+            soundEffect.currentTime = 0;
+            soundEffect.play().catch(() => {});
+            
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    document.getElementById('countdown').textContent = count;
+                } else if (count === 0) {
+                    document.getElementById('countdown').textContent = "PREPARADO(A)?";
+                } else {
+                    clearInterval(timer);
+                    prepararLogo();
+                }
+            }, 1000);
+        }
+
+        function prepararLogo() {
+            // Delay aleatório após o "preparado"
+            setTimeout(() => {
+                document.getElementById('countdown').style.display = 'none';
+                document.getElementById('game-area').classList.remove('hidden');
+                document.getElementById('target-logo').style.display = 'block';
+                tempoInicial = Date.now();
+                podeClicar = true;
+            }, Math.random() * 2000 + 800);
+        }
+
+        function registrarClique(e) {
+            if (e && e.cancelable) e.preventDefault();
+            if (!podeClicar) return;
+            
+            tempoFinal = Date.now();
+            podeClicar = false;
+            
+            const totalTempo = (tempoFinal - tempoInicial) / 1000;
+            mostrarResultado(totalTempo);
+        }
+
+        function mostrarResultado(tempo) {
+            document.getElementById('game-container').style.display = 'none';
+            document.getElementById('result-screen').style.display = 'flex';
+            document.body.style.backgroundColor = "#8b0a1e";
+
+            let pText = "", cor = "", txtC = "black";
+            
+            if (tempo <= 0.15) { 
+                pText = "🏆 BENEFÍCIO PREMIUM: R$200 OFF ou Upgrade Lente/Antirreflexo!"; 
+                cor = "#FFD700"; 
+            } else if (tempo <= 0.36) { 
+                pText = "🥈 BENEFÍCIO MÉDIO: R$100 OFF Especial!"; 
+                cor = "#C0C0C0"; 
+            } else { 
+                pText = "🥉 BENEFÍCIO GARANTIDO: Você ganhou um Kit Limpeza Diniz!"; 
+                cor = "#CD7F32"; txtC = "white"; 
+            }
+
+            const prizeDiv = document.getElementById('prize-display');
+            prizeDiv.innerHTML = pText;
+            prizeDiv.style.backgroundColor = cor;
+            prizeDiv.style.color = txtC;
+            document.getElementById('time-display').textContent = `Seu tempo de reação: ${tempo.toFixed(3)}s`;
+
+            // Envia para o Discord
+            enviarParaDiscord(userNome, userCPF, tempo, pText);
+            
+            // Confetes
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#C8102E', '#FFD700', '#ffffff'] });
+        }
+    </script>
+</body>
+</html>
